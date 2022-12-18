@@ -26,25 +26,29 @@
  *
  ********************************************************************************/
 module resistive_two_way_mixer #(
-    parameter longint R0 = 10000,
-    parameter longint R1 = 10000
+    parameter real R0 = 10000,
+    parameter real R1 = 10000
 ) (
     input clk,
     input I_RSTn,
     input audio_clk_en,
     input[15:0] inputs[1:0],
-    output reg[15:0] out = 0
+    output reg[15:0] out
 );
-    // r0:       65536, r1:       65536, norm:                 32768
-    localparam integer R0_RATIO_16_SHIFTED = 32'((R1 <<< 16) / R0);
-    localparam integer R1_RATIO_16_SHIFTED = 32'((R0 <<< 16) / R1);
-    localparam longint NORMALIZATION_RATIO_16_SHIFTED = (1 <<< 32)/(R0_RATIO_16_SHIFTED+R1_RATIO_16_SHIFTED);
+    localparam int signal_width = 16;
+    localparam int multiplier_width = signal_width * 2;
+    localparam int fraction_width = signal_width - 1; // all bits in fraction, except sign bit
+    localparam int fraction_mutliplier = (1<<<fraction_width);
+    localparam IN0_FACTOR = R1 / (R0 + R1);
+    localparam IN1_FACTOR = R0 / (R0 + R1);
 
     always@(posedge clk, negedge I_RSTn) begin
         if(!I_RSTn)begin
             out <= 0;
         end else if(audio_clk_en)begin
-            out <= 16'((R0_RATIO_16_SHIFTED * inputs[0] + R1_RATIO_16_SHIFTED * inputs[1]) * NORMALIZATION_RATIO_16_SHIFTED >>> 32);
+            out <= signal_width'((
+                multiplier_width'(fraction_mutliplier * IN0_FACTOR) * inputs[0] +
+                multiplier_width'(fraction_mutliplier * IN1_FACTOR) * inputs[1]) >>> fraction_width);
         end
     end
 endmodule

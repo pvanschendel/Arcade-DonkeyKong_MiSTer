@@ -39,9 +39,6 @@ module dk_walk #(
     assign mixer_input[0] = walk_en_5volts_filtered;
     assign mixer_input[1] = square_osc_out;
 
-    localparam SAMPLE_RATE_SHIFT = 3;
-    localparam INTEGRATOR_SAMPLE_RATE = SAMPLE_RATE >> SAMPLE_RATE_SHIFT;
-
     wire signed[15:0] walk_en_filtered;
     wire signed[15:0] astable_555_out;
 
@@ -57,10 +54,12 @@ module dk_walk #(
         .out(square_osc_out)
     );
 
+    localparam R45 = 10e3;
+    localparam R46 = 12e3;
     resistive_two_way_mixer #(
-        .R0(10000),
-        .R1(12000)
-    ) mixer (
+        .R0(R45),
+        .R1(R46)
+    ) v_control_adder (
         .clk(clk),
         .I_RSTn(I_RSTn),
         .audio_clk_en(audio_clk_en),
@@ -70,11 +69,13 @@ module dk_walk #(
 
     wire signed[15:0] v_control_filtered;
 
+    localparam R44 = 1.2e3 * 3.08; //TODO schematic has 1.2k, but 3700 a closer response, probably need a better low pass implementation
+    localparam C29 = 3.3e-6;
     resistor_capacitor_low_pass_filter #(
         .SAMPLE_RATE(SAMPLE_RATE),
-        .R(3700), //TODO actual value is 1200, but 3700 a closer response, probably need a better low pass implementation
-        .C_35_SHIFTED(113387)
-    ) filter4 (
+        .R(R44),
+        .C(C29)
+    ) v_control_filter (
         .clk(clk),
         .I_RSTn(I_RSTn),
         .audio_clk_en(audio_clk_en),
@@ -128,10 +129,12 @@ module dk_walk #(
 
     wire signed[15:0] walk_enveloped_band_passed;
 
+    localparam R16 = 5.6e3 * 0.536; // schematic has 5.6K
+    localparam C22 = 47e-9;
     resistor_capacitor_low_pass_filter #(
         .SAMPLE_RATE(SAMPLE_RATE),
-        .R(3000), // actually 5.6K
-        .C_35_SHIFTED(1614)
+        .R(R16),
+        .C(C22)
     ) filter3 (
         .clk(clk),
         .I_RSTn(I_RSTn),
@@ -139,8 +142,6 @@ module dk_walk #(
         .in(walk_enveloped_high_passed),
         .out(walk_enveloped_band_passed)
     );
-
-
 
     always @(posedge clk, negedge I_RSTn) begin
         if(!I_RSTn)begin

@@ -11,24 +11,23 @@
  ********************************************************************************/
 module resistor_capacitor_low_pass_filter #(
     parameter SAMPLE_RATE = 48000,
-    parameter R = 47000,
-    parameter C_35_SHIFTED = 1615 // 0.000000047 farads <<< 35
+    parameter real R = 47000,  // Ohm
+    parameter real C = 47e-9   // F
 ) (
     input clk,
     input I_RSTn,
     input audio_clk_en,
     input signed[15:0] in,
-    output reg signed[15:0] out = 0
+    output signed[15:0] out = 0
 );
-    localparam longint DELTA_T_32_SHIFTED = (1 <<< 32) / SAMPLE_RATE;
-    localparam longint R_C_32_SHIFTED = R * C_35_SHIFTED >>> 3;
-    localparam longint SMOOTHING_FACTOR_ALPHA_16_SHIFTED = (DELTA_T_32_SHIFTED <<< 16) / (R_C_32_SHIFTED + DELTA_T_32_SHIFTED);
+    localparam R_C_NORMALIZED = R * C * SAMPLE_RATE;
+    localparam I_MULTIPLIER = 32'(int'((2.0**16) / (1.0 + R_C_NORMALIZED)));
 
     always@(posedge clk, negedge I_RSTn) begin
-        if(!I_RSTn)begin
+        if(!I_RSTn) begin
             out <= 0;
-        end else if(audio_clk_en)begin
-            out <= out + 16'(SMOOTHING_FACTOR_ALPHA_16_SHIFTED * (in - out) >>> 16);
+        end else if(audio_clk_en) begin
+            out <= out + 16'((I_MULTIPLIER * (in - out)) >>> 16);
         end
     end
 
