@@ -18,17 +18,26 @@ module resistor_capacitor_low_pass_filter #(
     input I_RSTn,
     input audio_clk_en,
     input signed[15:0] in,
-    output signed[15:0] out = 0
+    output signed[15:0] out
 );
+    localparam int signal_width = 16;
+    localparam int multiplier_width = signal_width * 2;
+    localparam int fraction_width = signal_width - 1; // all bits in fraction, except sign bit
+    localparam int fraction_mutliplier = (1<<<fraction_width);
     localparam R_C_NORMALIZED = R * C * SAMPLE_RATE;
-    localparam I_MULTIPLIER = 32'(int'((2.0**16) / (1.0 + R_C_NORMALIZED)));
+    localparam I_MULTIPLIER = 1.0 / (1.0 + R_C_NORMALIZED);
 
+    wire [multiplier_width - 1:0] integrand;
+    assign integrand =
+        multiplier_width'(fraction_mutliplier * I_MULTIPLIER) * signal_width'(in - out);
+    reg [multiplier_width - 1:0] integral; // does this really need to be a reg ?
     always@(posedge clk, negedge I_RSTn) begin
         if(!I_RSTn) begin
-            out <= 0;
+            integral <= 0;
         end else if(audio_clk_en) begin
-            out <= out + 16'((I_MULTIPLIER * (in - out)) >>> 16);
+            integral <= integral + integrand;
         end
     end
 
+    assign out = integral[multiplier_width-1:multiplier_width-signal_width];
 endmodule
