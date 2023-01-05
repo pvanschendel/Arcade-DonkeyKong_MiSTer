@@ -102,13 +102,13 @@ module dk_walk #(
         .out(W_8N_5_astable_555)
     );
 
-    localparam R18_plus_R17 = 9200; // [Ohm] not sure what this should be
-    localparam C25_35_SHIFTED = 113387; // = 3.3e-6 [F] * 2.0**35
+    localparam R18_plus_R17 = 9.2e3; // [Ohm] not sure what this should be
+    localparam C25 = 3.3e-6; // [F]
     wire signed[SIGNAL_WIDTH-1:0] walk_en_filtered;
     resistor_capacitor_high_pass_filter #(
         .SAMPLE_RATE(SAMPLE_RATE),
         .R(R18_plus_R17),
-        .C_35_SHIFTED(C25_35_SHIFTED)
+        .C(C25)
     ) walk_en_filter (
         .clk(clk),
         .I_RSTn(I_RSTn),
@@ -126,13 +126,13 @@ module dk_walk #(
 
     // TODO: The output bandpass stage should have a pass gain of 0.5, but it does not:
 
-    localparam R16_plus_R15 = 2000; // [Ohm] Schematic says 11.2k !?
-    localparam C23_35_SHIFTED = 161491; // = 4.7e-6 [F] * 2.0**35
+    localparam R16_plus_R15 = 2e3; // [Ohm] Schematic says 11.2k !?
+    localparam C23 = 4.7e-6; // [F]
     wire signed[SIGNAL_WIDTH-1:0] walk_enveloped_high_passed;
     resistor_capacitor_high_pass_filter #(
         .SAMPLE_RATE(SAMPLE_RATE),
         .R(R16_plus_R15),
-        .C_35_SHIFTED(C23_35_SHIFTED)
+        .C(C23)
     ) output_filter_hp (
         .clk(clk),
         .I_RSTn(I_RSTn),

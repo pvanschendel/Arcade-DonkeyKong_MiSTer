@@ -9,22 +9,25 @@
  *
  ********************************************************************************/
 module resistor_capacitor_high_pass_filter #(
-    parameter SAMPLE_RATE = 48000,
-    parameter R = 47000,
-    parameter C_35_SHIFTED = 1615 // 0.000000047 farads <<< 35
+    parameter SAMPLE_RATE = 48000, // [Hz]
+    parameter R = 47000, // [Ohm]
+    parameter C = 47e-9 // [F]
 ) (
     input clk,
     input I_RSTn,
     input audio_clk_en,
     input signed[15:0] in,
-    output reg signed[15:0] out = 0
+    output reg signed[15:0] out
 );
-    localparam longint DELTA_T_32_SHIFTED = (1 <<< 32) / SAMPLE_RATE;
-    localparam longint R_C_32_SHIFTED = R * C_35_SHIFTED >>> 3;
-    localparam longint SMOOTHING_FACTOR_ALPHA_16_SHIFTED = (R_C_32_SHIFTED <<< 16) / (R_C_32_SHIFTED + DELTA_T_32_SHIFTED);
+    localparam int SIGNAL_WIDTH = 16;
+    localparam int MULTIPLIER_WIDTH = SIGNAL_WIDTH * 2;
+    localparam int FRACTION_WIDTH = SIGNAL_WIDTH; // all bits in fraction, including sign bit !?
+    localparam int FRACTION_MULTIPLIER = (1<<<FRACTION_WIDTH);
+
+    localparam R_C_NORMALIZED = R * C * SAMPLE_RATE;
+    localparam int SMOOTHING_FACTOR_ALPHA_16_SHIFTED = FRACTION_MULTIPLIER * R_C_NORMALIZED / (R_C_NORMALIZED + 1.0);
 
     wire[7:0] random_number;
-
     LFSR lfsr(
         .clk(clk),
         .audio_clk_en(audio_clk_en),
@@ -32,14 +35,14 @@ module resistor_capacitor_high_pass_filter #(
         .LFSR(random_number)
     );
 
-    reg signed[15:0] last_in = 0;
+    reg signed[15:0] last_in;
     always@(posedge clk, negedge I_RSTn) begin
         if(!I_RSTn)begin
             out <= 0;
             last_in <= 0;
         end else if(audio_clk_en)begin
-            out <= 16'(SMOOTHING_FACTOR_ALPHA_16_SHIFTED * (out + in - last_in) >> 16);
-            last_in <= 16'(in + ((random_number >>> 6) - 2)); // add noise to help convergence to 0
+            out <= SIGNAL_WIDTH'((SMOOTHING_FACTOR_ALPHA_16_SHIFTED * (out + in - last_in)) >>> FRACTION_WIDTH);
+            last_in <= SIGNAL_WIDTH'(in + ((random_number >>> 6) - 2)); // add noise to help convergence to 0
         end
     end
 
