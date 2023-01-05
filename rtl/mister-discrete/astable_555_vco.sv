@@ -5,7 +5,8 @@
  *  Copyright 2022 by Jegor van Opdorp.
  *  This program is free software under the terms of the GPLv3, see LICENCSE.txt
  *
- *  Model taken from the equation on https://electronics.stackexchange.com/questions/101530/what-is-the-equation-for-the-555-timer-control-voltage
+ *  Model taken from the equation in answer by tardate (not accepted answer) on:
+ *  https://electronics.stackexchange.com/questions/101530/what-is-the-equation-for-the-555-timer-control-voltage
  *
  *  th=C⋅(R1+R2)⋅ln(1+v_control/(2*(VCC−v_control)))
  *  tl=C⋅R2⋅ln(2)
@@ -41,11 +42,13 @@
  *
  ********************************************************************************/
 module astable_555_vco#(
-    parameter CLOCK_RATE = 50000000,
-    parameter SAMPLE_RATE = 48000,
-    parameter R1 = 47000,
-    parameter R2 = 27000,
-    parameter C_35_SHIFTED = 1134 // 33 nanofarad
+    parameter int SIGNAL_FRACTION_WIDTH = 14, // VCC corresponds to in[SIGNAL_FRACTION_WIDTH] = 1, others = 0.
+    parameter real VCC = 12.0, // [V]
+    parameter real CLOCK_RATE = 50e6, // [Hz]
+    parameter real SAMPLE_RATE = 48e3, // [Hz]
+    parameter real R1 = 47e3, // [Ohm]
+    parameter real R2 = 27e3, // [Ohm]
+    parameter real C = 33e-9 // [F]
 ) (
     input clk,
     input I_RSTn,
@@ -54,18 +57,20 @@ module astable_555_vco#(
     output signed[15:0] out
 );
     localparam SIGNAL_WIDTH = 16;
-    localparam VCC = 16384;
-    localparam ln2_16_SHIFTED = 45426;
-    localparam[63:0] C_R2_ln2_27_SHIFTED = C_35_SHIFTED * R2 * ln2_16_SHIFTED >> 24;
-    localparam[63:0] C_R1_R2_35_SHIFTED = C_35_SHIFTED * (R1 + R2);
-    localparam[31:0] CYCLES_LOW = 32'(C_R2_ln2_27_SHIFTED * CLOCK_RATE >> 27);
-    localparam[31:0] CLOCK_RATE_C_R1_R2 = 32'(C_R1_R2_35_SHIFTED * CLOCK_RATE >> 35);
+    localparam int SIGNAL_MULTIPLIER = (1<<<SIGNAL_FRACTION_WIDTH);
+    `define VOLTAGE_TO_SIGNAL(VOLTAGE) \
+        SIGNAL_WIDTH'(SIGNAL_MULTIPLIER * ((VOLTAGE) / VCC))
+
+    localparam int SIG_5V = `VOLTAGE_TO_SIGNAL(5.0);
+    localparam real LN_2 = 0.6931471805599453;
+    localparam int CYCLES_LOW = C * R2 * LN_2 * CLOCK_RATE;
+    localparam int NORMALIZED_C_R1_R2 = C * (R1 + R2) * CLOCK_RATE;
 
     // TODO: once we have v_control configured correcly, this may not be
     // necessary anymore:
     // Only safe if v_control is positive:
     wire signed[SIGNAL_WIDTH-1:0] v_control_safe = v_control < 16'h7fff ? v_control : 16'h7ffe;
-    wire [SIGNAL_WIDTH-1:0] two_5_v_minus_vcontrol = SIGNAL_WIDTH'((VCC << 1) - (v_control_safe << 1));
+    wire [SIGNAL_WIDTH-1:0] two_5_v_minus_vcontrol = SIGNAL_WIDTH'((SIG_5V << 1) - (v_control_safe << 1));
 
     reg[23:0] to_log_8_shifted;
     wire [11:0] ln_vc_vcc_vc_8_shifted;
@@ -85,7 +90,7 @@ module astable_555_vco#(
         end else begin
             v_control_divided_two_5_v_minus_vcontrol <= v_control_safe / (two_5_v_minus_vcontrol >> 8);
             to_log_8_shifted <= 24'((1 << 8) + v_control_divided_two_5_v_minus_vcontrol);
-            cycles_high <= ((CLOCK_RATE_C_R1_R2 >> 4) * ln_vc_vcc_vc_8_shifted) >> 4; // C⋅(R1+R2)⋅ln(1+v_control/(2*(VCC−v_control)))
+            cycles_high <= ((NORMALIZED_C_R1_R2 >> 4) * ln_vc_vcc_vc_8_shifted) >> 4; // C⋅(R1+R2)⋅ln(1+v_control/(2*(VCC−v_control)))
         end
     end
     wire [32:0] wave_length = cycles_high + CYCLES_LOW;
@@ -101,12 +106,14 @@ module astable_555_vco#(
                 wave_length_counter + 1 : '0;
 
             if(audio_clk_en)begin
-                unfiltered_out <= wave_length_counter < cycles_high ? SIGNAL_WIDTH'(VCC) : '0;
+                unfiltered_out <= wave_length_counter < cycles_high ? SIGNAL_WIDTH'(SIG_5V) : '0;
             end
         end
     end
 
     rate_of_change_limiter #(
+        .SIGNAL_FRACTION_WIDTH(SIGNAL_FRACTION_WIDTH),
+        .VCC(VCC),
         .SAMPLE_RATE(SAMPLE_RATE),
         .MAX_CHANGE_RATE(200000)
     ) slew_rate (

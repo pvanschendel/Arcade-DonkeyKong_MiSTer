@@ -91,15 +91,16 @@ module dk_walk #(
     );
 
     //TODO: properly calculate influence of 555 timer on input voltage
-    localparam R42 = 47000; // [Ohm]
-    localparam R43 = 27000; // [Ohm]
+    localparam R42 = 47e3; // [Ohm]
+    localparam R43 = 27e3; // [Ohm]
+    localparam C28 = 33e-9; // [F]
     wire signed[SIGNAL_WIDTH-1:0] W_8N_5_astable_555;
     astable_555_vco #(
         .CLOCK_RATE(CLOCK_RATE),
         .SAMPLE_RATE(SAMPLE_RATE),
         .R1(R42),
         .R2(R43),
-        .C_35_SHIFTED(1134)
+        .C(C28)
     ) U_8N_5_vco (
         .clk(clk),
         .I_RSTn(I_RSTn),
