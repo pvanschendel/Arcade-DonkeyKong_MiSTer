@@ -17,9 +17,14 @@ module dk_walk #(
     output reg signed[15:0] out = 0
 );
     localparam int SIGNAL_WIDTH = 16;
+    localparam int SIGNAL_FRACTION_WIDTH = SIGNAL_WIDTH - 2; // use one sign bit and one bit to prevent overflow.
+    localparam int SIGNAL_MULTIPLIER = (1<<<SIGNAL_FRACTION_WIDTH);
+    localparam VCC = 12.0; // [V], this seems to be wrong, all parts have +(/-)5V supply voltage, but leave current code for now.
+    `define VOLTAGE_TO_SIGNAL(VOLTAGE) \
+        SIGNAL_WIDTH'(SIGNAL_MULTIPLIER * ((VOLTAGE) / VCC))
 
     // convert boolean to numerical signal
-    wire signed[SIGNAL_WIDTH-1:0] signal_walk = walk_en ? '0 : 16'd6827;
+    wire signed[SIGNAL_WIDTH-1:0] signal_walk = walk_en ? '0 : `VOLTAGE_TO_SIGNAL(5.0);
 
     // filter to simulate transfer rate of invertors
     wire signed[SIGNAL_WIDTH-1:0] W_6L_8_signal_walk_rate_limted;
@@ -93,7 +98,7 @@ module dk_walk #(
         .clk(clk),
         .I_RSTn(I_RSTn),
         .audio_clk_en(audio_clk_en),
-        .v_control((v_control_filtered >>> 1) + SIGNAL_WIDTH'(5900)), // this is probably the TODO above
+        .v_control((v_control_filtered >>> 1) + `VOLTAGE_TO_SIGNAL(4.32)), // this is probably the TODO above
         .out(W_8N_5_astable_555)
     );
 
@@ -114,7 +119,10 @@ module dk_walk #(
 
     // TODO: Diode hack below is structurally part of walk_en_filtered, and should connect to Q6
 
-    wire signed[SIGNAL_WIDTH-1:0] W_Q6_C_walk_enveloped = W_8N_5_astable_555 > 1000 ? walk_en_filtered : '0;
+    // TODO: This seems to have opposite logic: a high transistor base voltage should pull down walk_en_filtered
+    localparam BC1815_threshold_voltage = 0.73; // [V] TODO: value assumed from previous code
+    wire signed[SIGNAL_WIDTH-1:0] W_Q6_C_walk_enveloped =
+        W_8N_5_astable_555 > `VOLTAGE_TO_SIGNAL(BC1815_threshold_voltage) ? walk_en_filtered : '0;
 
     // TODO: The output bandpass stage should have a pass gain of 0.5, but it does not:
 
