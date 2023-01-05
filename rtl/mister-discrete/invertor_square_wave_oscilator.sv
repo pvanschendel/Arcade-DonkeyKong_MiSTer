@@ -10,14 +10,9 @@
  *  This model does not take the  transfer functions of the invertors
  *  into account:
  *
- *  f = 1 / 2.2 R1C1
+ *  f = 1 / (2.2 R1 C1)
  *  This equation was found on:
  *  https://www.gadgetronicx.com/square-wave-generator-logic-gates/
- *
- *  The equation didn't coincide with the circuit simulated version.
- *  It looks like the above formula is to obtain the SWITCHING feequency.
- *  The actualy frequency is twice lower.
- *
  *
  *        |\        |\
  *        | \       | \
@@ -34,29 +29,52 @@
  *
  *********************************************************************************/
 module invertor_square_wave_oscilator#(
-    parameter longint CLOCK_RATE = 50000000,
-    parameter SAMPLE_RATE = 48000,
-    parameter R1 = 4300,
-    parameter C_MICROFARADS_16_SHIFTED = 655360 // 10 microfarad
+    parameter int SIGNAL_FRACTION_WIDTH = 14, // VCC corresponds to in[SIGNAL_FRACTION_WIDTH] = 1, others = 0.
+    parameter real VCC = 12, // [V]
+    parameter real CLOCK_RATE = 50000000, // [Hz]
+    parameter real SAMPLE_RATE = 48000, // [Hz]
+    parameter real R1 = 4300, // [Ohm]
+    parameter real C = 10e-6 // [F]
 ) (
     input clk,
     input I_RSTn,
     input audio_clk_en,
     output signed[15:0] out
 );
-    localparam longint R1_K_OHM_16_SHIFTED = R1 * 16777 >> 8; // 1/1000 <<< 24 = 16777
-    localparam CONSTANT_RATIO_16_SHIFTED = 14895; // 1/2.2/2 * 2 ^ 16
-    localparam longint FREQUENCY_16_SHIFTED = CONSTANT_RATIO_16_SHIFTED * (R1_K_OHM_16_SHIFTED * C_MICROFARADS_16_SHIFTED) >> 32;
-    localparam longint WAVE_LENGTH = (CLOCK_RATE <<< 16) / FREQUENCY_16_SHIFTED;
-    localparam HALF_WAVE_LENGTH = WAVE_LENGTH >> 1;
+    localparam SIGNAL_WIDTH = 16;
+    localparam int PERIOD_COUNT = CLOCK_RATE * (2.2 * R1 * C);
+    localparam HALF_PERIOD_COUNT = PERIOD_COUNT >> 1;
 
-    reg [63:0] wave_length_counter = 0;
+    localparam int SIGNAL_MULTIPLIER = (1<<<SIGNAL_FRACTION_WIDTH);
+    `define VOLTAGE_TO_SIGNAL(VOLTAGE) \
+        SIGNAL_WIDTH'(SIGNAL_MULTIPLIER * ((VOLTAGE) / VCC))
 
-    reg signed[15:0] unfiltered_out = 0;
+    reg [31:0] period_counter;
+    reg signed[SIGNAL_WIDTH-1:0] unfiltered_out;
+    always@(posedge clk, negedge I_RSTn) begin
+        if(!I_RSTn)begin
+            period_counter <= 0;
+            unfiltered_out <= 0;
+        end else begin
+            if(period_counter < PERIOD_COUNT)begin
+                period_counter <= period_counter + 1;
+            end else begin
+                period_counter <= 0;
+            end
+
+            if (audio_clk_en) begin
+                // TODO: fix bug: we are outputting 12 V here, will also influence slew rate limiter:
+                unfiltered_out <=  period_counter < HALF_PERIOD_COUNT ? `VOLTAGE_TO_SIGNAL(12.0) : '0;
+            end
+        end
+    end
 
     // filter to simulate transfer rate of invertors
     rate_of_change_limiter #(
-        .SAMPLE_RATE(SAMPLE_RATE)
+        .SIGNAL_FRACTION_WIDTH(SIGNAL_FRACTION_WIDTH),
+        .VCC(VCC),
+        .SAMPLE_RATE(SAMPLE_RATE),
+        .MAX_CHANGE_RATE(1000) // [V/s]
     ) slew_rate (
         .clk(clk),
         .I_RSTn(I_RSTn),
@@ -64,21 +82,4 @@ module invertor_square_wave_oscilator#(
         .in(unfiltered_out),
         .out(out)
     );
-
-    always@(posedge clk, negedge I_RSTn) begin
-        if(!I_RSTn)begin
-            wave_length_counter <= 0;
-            unfiltered_out <= 0;
-        end else begin
-            if(wave_length_counter < WAVE_LENGTH)begin
-                wave_length_counter <= wave_length_counter + 1;
-            end else begin
-                wave_length_counter <= 0;
-            end
-
-            if (audio_clk_en) begin
-                unfiltered_out <=  wave_length_counter < HALF_WAVE_LENGTH ? 16'd16384 : '0;
-            end
-        end
-    end
 endmodule

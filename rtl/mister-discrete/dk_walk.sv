@@ -43,14 +43,16 @@ module dk_walk #(
         .out(W_6L_8_signal_walk_rate_limted)
     );
 
-    localparam R47 = 4100; // [Ohm] schematic: 4.3k, sligtly slower R, to simulate slower freq due to transfer rate of inverters
-    localparam C30_MICROFARADS_16_SHIFTED = 655360; // = 10 [uF] * 2.0**16
+    localparam R47 = 4.3e3; // [Ohm]
+    localparam C30 = 10e-6; // [F]
     wire signed[SIGNAL_WIDTH-1:0] W_8L_12_square_wave;
     invertor_square_wave_oscilator#(
+        .SIGNAL_FRACTION_WIDTH(SIGNAL_FRACTION_WIDTH),
+        .VCC(VCC),
         .CLOCK_RATE(CLOCK_RATE),
         .SAMPLE_RATE(SAMPLE_RATE),
         .R1(R47),
-        .C_MICROFARADS_16_SHIFTED(C30_MICROFARADS_16_SHIFTED)
+        .C(C30)
 	 ) U_8L_12_square_wave (
         .clk(clk),
         .I_RSTn(I_RSTn),
