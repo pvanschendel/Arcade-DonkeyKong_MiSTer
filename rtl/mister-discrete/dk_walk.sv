@@ -26,11 +26,15 @@ module dk_walk #(
     // convert boolean to numerical signal
     wire signed[SIGNAL_WIDTH-1:0] signal_walk = walk_en ? '0 : `VOLTAGE_TO_SIGNAL(5.0);
 
-    // filter to simulate transfer rate of invertors
+    // TODO: value assumed from previous code, maybe depends on value of
+    // pull-up resistor R36, so it may not be a not be a general property of LS05.
+    localparam LS05_slew_rate = 950; // [V/s]
     wire signed[SIGNAL_WIDTH-1:0] W_6L_8_signal_walk_rate_limted;
     rate_of_change_limiter #(
+        .VCC(VCC),
         .SAMPLE_RATE(SAMPLE_RATE),
-        .MAX_CHANGE_RATE(950)
+        .MAX_CHANGE_RATE(LS05_slew_rate),
+        .SIGNAL_FRACTION_WIDTH(SIGNAL_FRACTION_WIDTH)
     ) U_6L_8_slew_rate (
         .clk(clk),
         .I_RSTn(I_RSTn),
