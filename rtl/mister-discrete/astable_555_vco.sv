@@ -53,6 +53,7 @@ module astable_555_vco#(
     input signed[15:0] v_control,
     output signed[15:0] out
 );
+    localparam SIGNAL_WIDTH = 16;
     localparam VCC = 16384;
     localparam ln2_16_SHIFTED = 45426;
     localparam[63:0] C_R2_ln2_27_SHIFTED = C_35_SHIFTED * R2 * ln2_16_SHIFTED >> 24;
@@ -60,14 +61,14 @@ module astable_555_vco#(
     localparam[31:0] CYCLES_LOW = 32'(C_R2_ln2_27_SHIFTED * CLOCK_RATE >> 27);
     localparam[31:0] CLOCK_RATE_C_R1_R2 = 32'(C_R1_R2_35_SHIFTED * CLOCK_RATE >> 35);
 
-    wire signed[15:0] v_control_safe;
+    // TODO: once we have v_control configured correcly, this may not be
+    // necessary anymore:
+    // Only safe if v_control is positive:
+    wire signed[SIGNAL_WIDTH-1:0] v_control_safe = v_control < 16'h7fff ? v_control : 16'h7ffe;
+    wire [SIGNAL_WIDTH-1:0] two_5_v_minus_vcontrol = SIGNAL_WIDTH'((VCC << 1) - (v_control_safe << 1));
 
-    reg[15:0] v_control_divided_two_vcc_minus_vcontrol = 3000;
-    reg[15:0] two_vcc_minus_vcontrol = 3000;
-
-    wire [11:0] ln_vc_vcc_vc_8_shifted;
     reg[23:0] to_log_8_shifted;
-
+    wire [11:0] ln_vc_vcc_vc_8_shifted;
     natural_log natlog(
         .in_8_shifted(to_log_8_shifted),
         .I_RSTn(I_RSTn),
@@ -75,16 +76,35 @@ module astable_555_vco#(
         .out_8_shifted(ln_vc_vcc_vc_8_shifted)
     );
 
-    reg[32:0] WAVE_LENGTH;
-    reg[31:0] CYCLES_HIGH;
-
-    assign v_control_safe = v_control < 16'h7fff ? v_control : 16'h7ffe;
-
-    assign WAVE_LENGTH = CYCLES_HIGH + CYCLES_LOW;
+    reg[SIGNAL_WIDTH-1:0] v_control_divided_two_5_v_minus_vcontrol = 3000;
+    reg[31:0] cycles_high;
+    always @(posedge clk, negedge I_RSTn) begin
+        if(!I_RSTn)begin
+            to_log_8_shifted <= 0;
+            cycles_high <= 1000;
+        end else begin
+            v_control_divided_two_5_v_minus_vcontrol <= v_control_safe / (two_5_v_minus_vcontrol >> 8);
+            to_log_8_shifted <= 24'((1 << 8) + v_control_divided_two_5_v_minus_vcontrol);
+            cycles_high <= ((CLOCK_RATE_C_R1_R2 >> 4) * ln_vc_vcc_vc_8_shifted) >> 4; // C⋅(R1+R2)⋅ln(1+v_control/(2*(VCC−v_control)))
+        end
+    end
+    wire [32:0] wave_length = cycles_high + CYCLES_LOW;
 
     reg[63:0] wave_length_counter;
+    reg signed[SIGNAL_WIDTH-1:0] unfiltered_out;
+    always @(posedge clk, negedge I_RSTn) begin
+        if(!I_RSTn)begin
+            wave_length_counter <= 0;
+            unfiltered_out <= 0;
+        end else begin
+            wave_length_counter <= (wave_length_counter < wave_length) ?
+                wave_length_counter + 1 : '0;
 
-    reg signed[15:0] unfiltered_out;
+            if(audio_clk_en)begin
+                unfiltered_out <= wave_length_counter < cycles_high ? SIGNAL_WIDTH'(VCC) : '0;
+            end
+        end
+    end
 
     rate_of_change_limiter #(
         .SAMPLE_RATE(SAMPLE_RATE),
@@ -96,28 +116,4 @@ module astable_555_vco#(
         unfiltered_out,
         out
     );
-
-    always @(posedge clk, negedge I_RSTn) begin
-        if(!I_RSTn)begin
-            unfiltered_out <= 0;
-            to_log_8_shifted <= 0;
-            wave_length_counter <= 0;
-            CYCLES_HIGH <= 1000;
-        end else begin
-            v_control_divided_two_vcc_minus_vcontrol <= v_control_safe / (two_vcc_minus_vcontrol >> 8);
-            two_vcc_minus_vcontrol <= 16'((VCC << 1) - (v_control_safe << 1));
-            to_log_8_shifted <= 24'((1 << 8) + v_control_divided_two_vcc_minus_vcontrol);
-            CYCLES_HIGH <= ((CLOCK_RATE_C_R1_R2 >> 4) * ln_vc_vcc_vc_8_shifted) >> 4; // C⋅(R1+R2)⋅ln(1+v_control/(2*(VCC−v_control)))
-
-            if(wave_length_counter < WAVE_LENGTH)begin
-            wave_length_counter <= wave_length_counter + 1;
-            end else begin
-                wave_length_counter <= 0;
-            end
-
-            if(audio_clk_en)begin
-                unfiltered_out <= wave_length_counter < CYCLES_HIGH ? 16'd16384 : '0;
-            end
-        end
-    end
 endmodule
