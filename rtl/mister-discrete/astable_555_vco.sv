@@ -61,10 +61,10 @@ module astable_555_vco#(
     `define VOLTAGE_TO_SIGNAL(VOLTAGE) \
         SIGNAL_WIDTH'(SIGNAL_MULTIPLIER * ((VOLTAGE) / VCC))
 
-    localparam int SIG_5V = `VOLTAGE_TO_SIGNAL(5.0);
+    localparam int SIG_5V = `VOLTAGE_TO_SIGNAL(5.0); // 6827 = 0x1aaa, but synthesized is 0xd55 because we apparently drop only use the 8 MSB bits
     localparam real LN_2 = 0.6931471805599453;
-    localparam int CYCLES_LOW = C * R2 * LN_2 * CLOCK_RATE;
-    localparam int NORMALIZED_C_R1_R2 = C * (R1 + R2) * CLOCK_RATE;
+    localparam unsigned CYCLES_LOW = 32'(C * R2 * LN_2 * CLOCK_RATE);  // 15177 We get half, probaly be cause the last bit is not used for the comparison to total samples (*.5 = 0x1da5)
+    localparam unsigned NORMALIZED_TC_HIGH = 32'(C * (R1 + R2) * CLOCK_RATE); // 60014 -> /3 = 0xea6
 
     // TODO: once we have v_control configured correcly, this may not be
     // necessary anymore:
@@ -72,7 +72,7 @@ module astable_555_vco#(
     wire signed[SIGNAL_WIDTH-1:0] v_control_safe = v_control < 16'h7fff ? v_control : 16'h7ffe;
     wire [SIGNAL_WIDTH-1:0] two_5_v_minus_vcontrol = SIGNAL_WIDTH'((SIG_5V << 1) - (v_control_safe << 1));
 
-    reg[23:0] to_log_8_shifted;
+    reg[23:0] to_log_8_shifted; // we actually only use 9 bits
     wire [11:0] ln_vc_vcc_vc_8_shifted;
     natural_log natlog(
         .in_8_shifted(to_log_8_shifted),
@@ -89,24 +89,24 @@ module astable_555_vco#(
             cycles_high <= 1000;
         end else begin
             v_control_divided_two_5_v_minus_vcontrol <= v_control_safe / (two_5_v_minus_vcontrol >> 8);
-            to_log_8_shifted <= 24'((1 << 8) + v_control_divided_two_5_v_minus_vcontrol);
-            cycles_high <= ((NORMALIZED_C_R1_R2 >> 4) * ln_vc_vcc_vc_8_shifted) >> 4; // C⋅(R1+R2)⋅ln(1+v_control/(2*(VCC−v_control)))
+            to_log_8_shifted <= 24'((1 << 8) + v_control_divided_two_5_v_minus_vcontrol); // 1<<8 * (1 + v_control/(2 * VCC−v_control))
+            cycles_high <= ((NORMALIZED_TC_HIGH >> 4) * ln_vc_vcc_vc_8_shifted) >> 4; // C⋅(R1+R2)⋅ln(1+v_control/(2*(VCC−v_control)))
         end
     end
-    wire [32:0] wave_length = cycles_high + CYCLES_LOW;
+    wire [31:0] cycles_total = cycles_high + CYCLES_LOW;
 
-    reg[63:0] wave_length_counter;
+    reg[31:0] cycle_count;
     reg signed[SIGNAL_WIDTH-1:0] unfiltered_out;
     always @(posedge clk, negedge I_RSTn) begin
         if(!I_RSTn)begin
-            wave_length_counter <= 0;
+            cycle_count <= 0;
             unfiltered_out <= 0;
         end else begin
-            wave_length_counter <= (wave_length_counter < wave_length) ?
-                wave_length_counter + 1 : '0;
+            cycle_count <= (cycle_count < cycles_total) ?
+                cycle_count + 1 : '0;
 
             if(audio_clk_en)begin
-                unfiltered_out <= wave_length_counter < cycles_high ? SIGNAL_WIDTH'(SIG_5V) : '0;
+                unfiltered_out <= cycle_count < cycles_high ? SIGNAL_WIDTH'(SIG_5V) : '0; // Outputs 0x80
             end
         end
     end

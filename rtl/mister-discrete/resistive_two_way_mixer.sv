@@ -35,12 +35,13 @@ module resistive_two_way_mixer #(
     input[15:0] inputs[1:0],
     output reg[15:0] out
 );
+    localparam ampl_reduction = 0.33; // due to subsequent resisitive load
     localparam int signal_width = 16;
     localparam int multiplier_width = signal_width * 2;
     localparam int fraction_width = signal_width - 1; // all bits in fraction, except sign bit
     localparam int fraction_mutliplier = (1<<<fraction_width);
-    localparam IN0_FACTOR = R1 / (R0 + R1);
-    localparam IN1_FACTOR = R0 / (R0 + R1);
+    localparam IN0_FACTOR = ampl_reduction * R1 / (R0 + R1);
+    localparam IN1_FACTOR = 1.3 * ampl_reduction * R0 / (R0 + R1);  // 1.3 to get deep enough frequency dip at start
 
     always@(posedge clk, negedge I_RSTn) begin
         if(!I_RSTn)begin

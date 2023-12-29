@@ -73,7 +73,7 @@ module invertor_square_wave_oscilator#(
         .SIGNAL_FRACTION_WIDTH(SIGNAL_FRACTION_WIDTH),
         .VCC(VCC),
         .SAMPLE_RATE(SAMPLE_RATE),
-        .MAX_CHANGE_RATE(1000) // [V/s]
+        .MAX_CHANGE_RATE(10000) // [V/s]
     ) slew_rate (
         .clk(clk),
         .I_RSTn(I_RSTn),
