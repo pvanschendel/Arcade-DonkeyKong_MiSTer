@@ -63,8 +63,7 @@ module invertor_square_wave_oscilator#(
             end
 
             if (audio_clk_en) begin
-                // TODO: fix bug: we are outputting 12 V here, will also influence slew rate limiter:
-                unfiltered_out <=  period_counter < HALF_PERIOD_COUNT ? `VOLTAGE_TO_SIGNAL(12.0) : '0;
+                unfiltered_out <=  period_counter < HALF_PERIOD_COUNT ? `VOLTAGE_TO_SIGNAL(5.0) : '0;
             end
         end
     end

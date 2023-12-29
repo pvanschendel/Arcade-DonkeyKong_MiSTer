@@ -105,7 +105,7 @@ module dk_walk #(
         .clk(clk),
         .I_RSTn(I_RSTn),
         .audio_clk_en(audio_clk_en),
-        .v_control((v_control_filtered >>> 1) + `VOLTAGE_TO_SIGNAL(4.32)), // this is probably the TODO above
+        .v_control(v_control_filtered + `VOLTAGE_TO_SIGNAL(1.71)),
         .out(W_8N_5_astable_555)
     );
 
