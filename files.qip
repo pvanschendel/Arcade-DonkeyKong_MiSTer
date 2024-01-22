@@ -24,6 +24,7 @@ set_global_assignment -name SYSTEMVERILOG_FILE "rtl/mister-discrete/resistor_cap
 set_global_assignment -name SYSTEMVERILOG_FILE "rtl/mister-discrete/rate_of_change_limiter.sv"
 set_global_assignment -name SYSTEMVERILOG_FILE "rtl/mister-discrete/invertor_square_wave_oscilator.sv"
 set_global_assignment -name SYSTEMVERILOG_FILE "rtl/mister-discrete/dk_walk.sv"
+set_global_assignment -name SYSTEMVERILOG_FILE "test_with_code_generator/WalkEnAstable555_by_hand.sv"
 set_global_assignment -name VERILOG_FILE rtl/radarscp_stars.v
 set_global_assignment -name QIP_FILE rtl/t48/T48.qip
 set_global_assignment -name QIP_FILE rtl/T80/T80.qip

@@ -61,6 +61,7 @@ module dk_walk #(
         .out(W_8L_12_square_wave)
     );
 
+/*
     wire signed[SIGNAL_WIDTH-1:0] mixer_input[1:0] = '{W_6L_8_signal_walk_rate_limted, W_8L_12_square_wave};
     localparam R45 = 10e3;
     localparam R46_plus_R36 = 12e3 * 1.07 + 1e3; // 1.07 fudge factor
@@ -90,6 +91,24 @@ module dk_walk #(
         .audio_clk_en(audio_clk_en),
         .in(v_control),
         .out(v_control_filtered)
+    );
+*/
+
+   //  `define RANGE_PARAM_REAL(name) ``name``_range_val
+   //  `define WIDTH_PARAM_REAL(name) ``name``_width_val
+   //  `define EXPONENT_PARAM_REAL(name) ``name``_exponent_val
+
+    wire signed[SIGNAL_WIDTH-1:0] v_control_filtered;
+    WalkEnAstable555 #(
+        .signal_width(SIGNAL_WIDTH)
+    ) NetworkEnAstable (
+        .clk(clk),
+        .rst(~I_RSTn),
+        .clk_en(audio_clk_en),
+        .walk_en(W_6L_8_signal_walk_rate_limted),
+        .square_wave(W_8L_12_square_wave),
+        .vcc(`VOLTAGE_TO_SIGNAL(5.0)),
+        .v_control(v_control_filtered)
     );
 
     localparam R42 = 47e3; // [Ohm]
@@ -123,7 +142,7 @@ module dk_walk #(
         .clk(clk),
         .I_RSTn(I_RSTn),
         .audio_clk_en(audio_clk_en),
-        .v_control(v_control_filtered + `VOLTAGE_TO_SIGNAL(1.71)),
+        .v_control(v_control_filtered),
         .out(W_8N_5_astable_555)
     );
 
