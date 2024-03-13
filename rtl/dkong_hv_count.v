@@ -7,21 +7,21 @@
 //
 // Important !
 //
-// This program is freeware for non-commercial use. 
+// This program is freeware for non-commercial use.
 // An author does no guarantee about this program.
 // You can use this under your own risk.
 //
 // 2005- 2- 9 	some changed.
 //================================================================================
 //-----------------------------------------------------------------------------------------
-// H_CNT[0],H_CNT[1],H_CNT[2],H_CNT[3],H_CNT[4],H_CNT[5],H_CNT[6],H_CNT[7],H_CNT[8],H_CNT[9]  
+// H_CNT[0],H_CNT[1],H_CNT[2],H_CNT[3],H_CNT[4],H_CNT[5],H_CNT[6],H_CNT[7],H_CNT[8],H_CNT[9]
 //   1/2 H     1 H     2 H      4H       8H       16 H     32H      64 H     128 H   256 H
 //-----------------------------------------------------------------------------------------
-// V_CNT[0], V_CNT[1], V_CNT[2], V_CNT[3], V_CNT[4], V_CNT[5], V_CNT[6], V_CNT[7]  
-//    1 V      2 V       4 V       8 V       16 V      32 V      64 V     128 V 
+// V_CNT[0], V_CNT[1], V_CNT[2], V_CNT[3], V_CNT[4], V_CNT[5], V_CNT[6], V_CNT[7]
+//    1 V      2 V       4 V       8 V       16 V      32 V      64 V     128 V
 //-----------------------------------------------------------------------------------------
-// VF_CNT[0],VF_CNT[1],VF_CNT[2],VF_CNT[3],VF_CNT[4],VF_CNT[5],VF_CNT[6],VF_CNT[7]  
-//    1 VF     2 VF      4 VF      8 VF      16 VF     32 VF     64 VF    128 VF 
+// VF_CNT[0],VF_CNT[1],VF_CNT[2],VF_CNT[3],VF_CNT[4],VF_CNT[5],VF_CNT[6],VF_CNT[7]
+//    1 VF     2 VF      4 VF      8 VF      16 VF     32 VF     64 VF    128 VF
 
 
 module dkong_hv_count(
@@ -54,10 +54,11 @@ parameter V_CL_W  = 639;
 parameter V_BL_P  = 239;
 parameter V_BL_W  = 15;
 
+// TODO: H_CNT_r[0] is used as a clock:
 reg    [10:0]H_CNT_r = 0;
 always@(posedge I_CLK)
 begin
-   H_CNT_r <= (H_CNT_r == H_count - 1'b1)?  - 1'b0 : H_CNT_r + 1'b1 ;
+   H_CNT_r <= (H_CNT_r == H_count - 1'b1)? 1'b0 : H_CNT_r + 1'b1 ;
 end
 
 assign H_CNT[9:0] = H_CNT_r[10:1];
@@ -111,5 +112,5 @@ assign V_SYNCn    = (V_CNT_r > 255 - V_OFFSET) ^ (V_CNT_r < 9'd511 - V_OFFSET);
 assign V_BLANKn   = ~V_BLANK;
 assign C_BLANKn   = ~(H_BLANK | V_BLANK);
 assign VF_CNT[7:0]= V_CNT ^ {8{V_FLIP}};
- 
-endmodule 
+
+endmodule

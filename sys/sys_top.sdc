@@ -2,16 +2,34 @@
 create_clock -period "50.0 MHz"  [get_ports FPGA_CLK1_50]
 create_clock -period "50.0 MHz"  [get_ports FPGA_CLK2_50]
 create_clock -period "50.0 MHz"  [get_ports FPGA_CLK3_50]
-create_clock -period "100.0 MHz" [get_pins -compatibility_mode *|h2f_user0_clk] 
+create_clock -period "100.0 MHz" [get_pins -compatibility_mode *|h2f_user0_clk]
 create_clock -period "100.0 MHz" [get_pins -compatibility_mode spi|sclk_out] -name spi_sck
 create_clock -period "10.0 MHz"  [get_pins -compatibility_mode hdmi_i2c|out_clk] -name hdmi_sck
+
+# # always@(negedge CLK_24M) CLK_3E <= ~(~(I_H_CNT[0]&W_6K_Q[5])& CLK_12M);
+# create_generated_clock -divide_by 2 -source [get_pins clk] [get_registers emu|dkong|obj|CLK_3E]
+# # always@(negedge CLK_24M) CLK_4L = ~(I_H_CNT[0]&(~I_H_CNT[1]));
+# create_generated_clock -divide_by 2 -source [get_pins clk] [get_registers emu|dkong|obj|CLK_4L]
+# # logic_74xx139 U_5F2(.I_G(1'b0), .I_Sel({I_H_CNT[3],I_H_CNT[2]}), .O_Q(W_5F2_QB));
+# # always@(negedge CLK_24M) W_5F2_Q <= W_5F2_QB;
+# create_generated_clock -divide_by 2 -source [get_pins clk] [get_registers emu|dkong|obj|W_5F2_Q[0]]
+# create_generated_clock -divide_by 2 -source [get_pins clk] [get_registers emu|dkong|obj|W_5F2_Q[2]]
+# # emu|pll|.outclk_1(clk_sys),
+# # .I_CLK_24576M(clk_sys),
+# # .I_CLK(W_CLK_24576M),
+# # reg    [10:0]H_CNT_r = 0;
+# # always@(posedge I_CLK)
+# # begin
+# #    H_CNT_r <= (H_CNT_r == H_count - 1'b1)? 1'b0 : H_CNT_r + 1'b1 ;
+# # end
+# create_generated_clock -divide_by 2 -source [get_ports emu|pll|pll_inst|altera_pll_i|outclk[1]] [get_registers emu|dkong|hv|H_CNT_r[0]]
 
 derive_pll_clocks
 derive_clock_uncertainty
 
 # Decouple different clock groups (to simplify routing)
 set_clock_groups -exclusive \
-   -group [get_clocks { *|pll|pll_inst|altera_pll_i|*[*].*|divclk}] \
+   -group [get_clocks { *|pll|pll_inst|altera_pll_i|*[*].*|divclk emu|dkong|obj|*}] \
    -group [get_clocks { pll_hdmi|pll_hdmi_inst|altera_pll_i|*[0].*|divclk}] \
    -group [get_clocks { pll_audio|pll_audio_inst|altera_pll_i|*[0].*|divclk}] \
    -group [get_clocks { spi_sck}] \
